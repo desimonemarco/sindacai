@@ -1,39 +1,523 @@
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SindacAI — Consulente AI del Lavoro</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blu: #1a2e4a; --blu-mid: #2c4a6e; --blu-light: #e8f0f8;
+    --oro: #c4923a; --oro-light: #f5e9d5;
+    --testo: #1a1a1a; --testo-muted: #6b7280;
+    --bg: #f7f5f0; --card: #ffffff; --bordo: #e2ddd5;
+    --verde: #2d6a4f; --verde-light: #d8f3dc;
+    --radius: 12px;
   }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--testo); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
-  const { messages, system } = req.body;
+  /* HEADER */
+  header { background: var(--blu); padding: 0 1rem; height: 56px; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid var(--oro); flex-shrink: 0; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; background: var(--oro); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .logo-icon svg { width: 18px; height: 18px; }
+  .logo-text { font-family: 'Playfair Display', serif; color: white; font-size: 1.1rem; font-weight: 600; }
+  .logo-sub { font-size: 0.62rem; color: rgba(255,255,255,0.5); font-weight: 300; letter-spacing: 0.08em; text-transform: uppercase; display: block; line-height: 1; margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .header-badge { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; color: rgba(255,255,255,0.75); }
+  .badge-dot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; flex-shrink: 0; }
+  .profilo-pill { display: none; align-items: center; gap: 5px; background: var(--oro); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 500; cursor: pointer; }
+  .profilo-pill.visibile { display: flex; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-  if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: 'Messages array required' });
-  }
+  /* MOBILE NAV (bottom bar) */
+  .mobile-nav { display: none; background: var(--card); border-top: 1px solid var(--bordo); padding: 8px 0 12px; flex-shrink: 0; }
+  .mobile-nav-items { display: flex; justify-content: space-around; }
+  .mobile-nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 0.65rem; color: var(--testo-muted); cursor: pointer; padding: 4px 12px; border-radius: 8px; transition: all 0.15s; }
+  .mobile-nav-item.active { color: var(--blu-mid); }
+  .mobile-nav-item svg { width: 20px; height: 20px; }
 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: system || 'Sei un consulente esperto di diritto del lavoro italiano.',
-        messages: messages
-      })
-    });
+  /* LAYOUT DESKTOP */
+  .main { display: flex; flex: 1; overflow: hidden; }
 
-    const data = await response.json();
+  /* SIDEBAR */
+  .sidebar { width: 260px; background: var(--card); border-right: 1px solid var(--bordo); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; transition: transform 0.3s ease; }
+  .sidebar-section { padding: 1rem 1rem 0.8rem; border-bottom: 1px solid var(--bordo); }
+  .sidebar-title { font-size: 0.62rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--testo-muted); margin-bottom: 0.7rem; }
+  .settore-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; margin-bottom: 4px; }
+  .settore-badge.sanita { background: #e8f0f8; color: #185FA5; }
+  .settore-badge.commercio { background: #faeeda; color: #854F0B; }
+  .settore-badge.industria { background: #eeedfe; color: #534AB7; }
+  .settore-badge.pubblico { background: #d8f3dc; color: #2d6a4f; }
+  .settore-badge.nessuno { background: var(--bg); color: var(--testo-muted); font-size: 0.72rem; }
+  .topic-chip { display: inline-flex; align-items: center; background: var(--blu-light); color: var(--blu-mid); font-size: 0.75rem; font-weight: 500; padding: 4px 9px; border-radius: 20px; margin: 2px; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+  .topic-chip:hover { background: var(--blu-mid); color: white; }
+  .fonti-card { background: var(--bg); border: 1px solid var(--bordo); border-radius: 8px; padding: 0.7rem; margin-bottom: 0.5rem; }
+  .fonti-card-label { font-size: 0.62rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--testo-muted); margin-bottom: 3px; }
+  .fonti-card-title { font-size: 0.8rem; font-weight: 500; color: var(--testo); line-height: 1.3; }
+  .fonti-card-meta { font-size: 0.7rem; color: var(--testo-muted); margin-top: 2px; }
+  .sidebar-storia { flex: 1; overflow-y: auto; padding: 0.8rem 1rem; }
+  .storia-item { padding: 0.5rem 0.7rem; border-radius: 8px; cursor: pointer; font-size: 0.8rem; color: var(--testo-muted); transition: background 0.1s; margin-bottom: 2px; }
+  .storia-item:hover { background: var(--bg); color: var(--testo); }
+  .storia-item.attivo { background: var(--blu-light); color: var(--blu-mid); font-weight: 500; }
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: data.error?.message || 'API error' });
+  /* CHAT */
+  .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); min-width: 0; }
+  .chat-topbar { background: var(--card); border-bottom: 1px solid var(--bordo); padding: 0.75rem 1.2rem; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .chat-topbar-title { font-family: 'Playfair Display', serif; font-size: 0.95rem; font-weight: 600; color: var(--blu); }
+  .chat-topbar-sub { font-size: 0.7rem; color: var(--testo-muted); margin-top: 1px; }
+  .disclaimer-pill { font-size: 0.65rem; background: var(--oro-light); color: var(--oro); border: 1px solid #e8c97a; padding: 3px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+
+  /* MESSAGGI */
+  .messaggi { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; }
+  .benvenuto { text-align: center; padding: 1.5rem 0.5rem; max-width: 520px; margin: 0 auto; width: 100%; }
+  .benvenuto-icon { width: 50px; height: 50px; background: var(--blu); border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; }
+  .benvenuto h2 { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: var(--blu); margin-bottom: 0.4rem; }
+  .benvenuto p { font-size: 0.85rem; color: var(--testo-muted); line-height: 1.6; margin-bottom: 1.2rem; }
+  .settori-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem; }
+  .settore-card { background: var(--card); border: 1px solid var(--bordo); border-radius: 10px; padding: 0.8rem; cursor: pointer; transition: all 0.15s; text-align: left; }
+  .settore-card:hover, .settore-card:active { border-color: var(--blu-mid); background: var(--blu-light); }
+  .settore-card-icon { font-size: 1.3rem; margin-bottom: 5px; }
+  .settore-card-title { font-size: 0.85rem; font-weight: 500; color: var(--testo); }
+  .settore-card-sub { font-size: 0.72rem; color: var(--testo-muted); margin-top: 2px; }
+
+  /* MESSAGGI BOLLA */
+  .msg-utente { display: flex; justify-content: flex-end; animation: fadeIn 0.2s ease; }
+  .msg-utente-bubble { background: var(--blu); color: white; padding: 0.75rem 1rem; border-radius: 16px 16px 4px 16px; max-width: 80%; font-size: 0.875rem; line-height: 1.5; }
+  .msg-ai { display: flex; gap: 8px; align-items: flex-start; animation: fadeIn 0.25s ease; max-width: 92%; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  .ai-avatar { width: 28px; height: 28px; background: var(--blu); border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+  .ai-avatar svg { width: 14px; height: 14px; }
+  .msg-ai-content { background: var(--card); border: 1px solid var(--bordo); border-radius: 4px 14px 14px 14px; padding: 0.85rem 1rem; font-size: 0.85rem; line-height: 1.65; color: var(--testo); }
+  .msg-ai-content p { margin-bottom: 0.5rem; }
+  .msg-ai-content p:last-child { margin-bottom: 0; }
+
+  /* QUICK REPLIES */
+  .quick-reply-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.75rem; }
+  .quick-reply { background: var(--blu-light); color: var(--blu-mid); border: 1px solid #b5d4f4; padding: 5px 11px; border-radius: 20px; font-size: 0.76rem; cursor: pointer; transition: all 0.15s; }
+  .quick-reply:hover, .quick-reply:active { background: var(--blu-mid); color: white; }
+
+  /* CITAZIONI */
+  .citazioni { margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .citazioni-label { font-size: 0.65rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--testo-muted); margin-bottom: 2px; }
+  .cit-card { display: flex; gap: 8px; align-items: flex-start; background: var(--bg); border: 1px solid var(--bordo); border-radius: 8px; padding: 0.6rem 0.8rem; border-left: 3px solid; }
+  .cit-card.ccnl { border-left-color: var(--blu-mid); }
+  .cit-card.sentenza { border-left-color: var(--verde); }
+  .cit-card.legge { border-left-color: var(--oro); }
+  .cit-tipo { font-size: 0.6rem; font-weight: 600; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; margin-top: 1px; }
+  .cit-tipo.ccnl { background: var(--blu-light); color: var(--blu-mid); }
+  .cit-tipo.sentenza { background: var(--verde-light); color: var(--verde); }
+  .cit-tipo.legge { background: var(--oro-light); color: #7a5a1a; }
+  .cit-testo { font-size: 0.78rem; color: var(--testo); line-height: 1.4; }
+  .cit-testo strong { font-weight: 500; display: block; margin-bottom: 1px; }
+  .cit-meta { font-size: 0.7rem; color: var(--testo-muted); }
+
+  /* LOADING */
+  .loading-msg { display: flex; gap: 8px; align-items: flex-start; }
+  .typing-indicator { background: var(--card); border: 1px solid var(--bordo); border-radius: 4px 14px 14px 14px; padding: 0.85rem 1rem; display: flex; gap: 5px; align-items: center; }
+  .typing-dot { width: 6px; height: 6px; background: var(--testo-muted); border-radius: 50%; animation: bounce 1.2s infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+  /* INPUT */
+  .input-area { background: var(--card); border-top: 1px solid var(--bordo); padding: 0.75rem 1rem 0.85rem; flex-shrink: 0; }
+  .input-wrap { display: flex; gap: 8px; align-items: flex-end; background: var(--bg); border: 1.5px solid var(--bordo); border-radius: 12px; padding: 0.5rem 0.65rem 0.5rem 1rem; transition: border-color 0.15s; }
+  .input-wrap:focus-within { border-color: var(--blu-mid); }
+  #input-msg { flex: 1; border: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; color: var(--testo); resize: none; max-height: 100px; min-height: 22px; line-height: 1.5; outline: none; }
+  #input-msg::placeholder { color: var(--testo-muted); }
+  .btn-send { width: 34px; height: 34px; background: var(--blu); color: white; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; }
+  .btn-send:hover { background: var(--blu-mid); }
+  .btn-send:disabled { background: var(--bordo); cursor: not-allowed; }
+  .input-footer { font-size: 0.65rem; color: var(--testo-muted); margin-top: 0.4rem; text-align: center; }
+
+  /* DRAWER MOBILE (sidebar come pannello) */
+  .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; }
+  .sidebar-overlay.aperto { display: block; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bordo); border-radius: 10px; }
+
+  /* ===== RESPONSIVE MOBILE ===== */
+  @media (max-width: 680px) {
+    .sidebar {
+      position: fixed;
+      left: 0; top: 56px;
+      height: calc(100dvh - 56px);
+      width: 280px;
+      z-index: 201;
+      transform: translateX(-100%);
+      box-shadow: 4px 0 20px rgba(0,0,0,0.15);
     }
-
-    return res.status(200).json(data);
-
-  } catch (error) {
-    return res.status(500).json({ error: 'Internal server error' });
+    .sidebar.aperta { transform: translateX(0); }
+    .mobile-nav { display: block; }
+    .header-badge span { display: none; }
+    .chat-topbar-sub { display: none; }
+    .benvenuto { padding: 1rem 0.25rem; }
+    .settori-grid { grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+    .settore-card { padding: 0.65rem 0.7rem; }
+    .msg-utente-bubble { max-width: 88%; }
+    .msg-ai { max-width: 98%; }
+    .messaggi { padding: 0.85rem; gap: 0.85rem; }
   }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M10 2L13 7H17L14 11L15.5 16L10 13L4.5 16L6 11L3 7H7L10 2Z" fill="white" stroke="white" stroke-width="0.5"/></svg>
+    </div>
+    <div>
+      <span class="logo-text">SindacAI</span>
+      <span class="logo-sub">Consulente AI del lavoro</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="profilo-pill" id="profilo-pill" onclick="resetProfilo()">
+      <span id="profilo-label"></span>
+    </div>
+    <div class="header-badge">
+      <div class="badge-dot"></div>
+      <span>Attivo</span>
+    </div>
+  </div>
+</header>
+
+<!-- SIDEBAR OVERLAY MOBILE -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="chiudiSidebar()"></div>
+
+<div class="main">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Il tuo profilo</div>
+      <div id="sidebar-settore" class="settore-badge nessuno">Nessun settore</div>
+      <div id="sidebar-ccnl" style="font-size:0.72rem;color:var(--testo-muted);margin-top:3px;display:none"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Temi frequenti</div>
+      <div>
+        <span class="topic-chip" onclick="inserisciEchiudi('Licenziamento illegittimo')">Licenziamento</span>
+        <span class="topic-chip" onclick="inserisciEchiudi('Straordinari non pagati')">Straordinari</span>
+        <span class="topic-chip" onclick="inserisciEchiudi('Maternità e congedi')">Maternità</span>
+        <span class="topic-chip" onclick="inserisciEchiudi('Mobbing e molestie')">Mobbing</span>
+        <span class="topic-chip" onclick="inserisciEchiudi('Ferie e permessi')">Ferie</span>
+        <span class="topic-chip" onclick="inserisciEchiudi('Mansioni inferiori')">Mansioni</span>
+        <span class="topic-chip" onclick="inserisciEchiudi('Busta paga scorretta')">Busta paga</span>
+        <span class="topic-chip" onclick="inserisciEchiudi('Periodo di prova')">Prova</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Fonti disponibili</div>
+      <div class="fonti-card">
+        <div class="fonti-card-label">CCNL</div>
+        <div class="fonti-card-title">Tutti i principali contratti</div>
+        <div class="fonti-card-meta">Sanità · Commercio · Industria · PA</div>
+      </div>
+      <div class="fonti-card">
+        <div class="fonti-card-label">Giurisprudenza</div>
+        <div class="fonti-card-title">Cassazione · Tribunali lavoro</div>
+        <div class="fonti-card-meta">+5.000 sentenze indicizzate</div>
+      </div>
+      <div class="fonti-card">
+        <div class="fonti-card-label">Normativa</div>
+        <div class="fonti-card-title">Statuto lavoratori · Jobs Act</div>
+        <div class="fonti-card-meta">Leggi aggiornate 2024</div>
+      </div>
+    </div>
+    <div class="sidebar-storia">
+      <div class="sidebar-title">Conversazioni recenti</div>
+      <div class="storia-item attivo">Nuova conversazione</div>
+    </div>
+  </aside>
+
+  <div class="chat-area">
+    <div class="chat-topbar">
+      <div>
+        <div class="chat-topbar-title" id="topbar-title">Consulente diritto del lavoro</div>
+        <div class="chat-topbar-sub" id="topbar-sub">Tutti i settori · Normativa italiana</div>
+      </div>
+      <div class="disclaimer-pill">Uso informativo</div>
+    </div>
+
+    <div class="messaggi" id="messaggi">
+      <div class="benvenuto" id="benvenuto">
+        <div class="benvenuto-icon">
+          <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 4L17.5 10H23L19 15L20.5 21L14 17.5L7.5 21L9 15L5 10H10.5L14 4Z" fill="white" stroke="white" stroke-width="0.5"/></svg>
+        </div>
+        <h2>Benvenuto in SindacAI</h2>
+        <p>Consulente AI su diritto del lavoro italiano. Dimmi in che settore lavori per ricevere risposte personalizzate sul tuo CCNL.</p>
+        <div class="settori-grid">
+          <div class="settore-card" onclick="selezionaSettore('sanita')">
+            <div class="settore-card-icon">🏥</div>
+            <div class="settore-card-title">Sanità</div>
+            <div class="settore-card-sub">Infermieri, OSS, tecnici</div>
+          </div>
+          <div class="settore-card" onclick="selezionaSettore('commercio')">
+            <div class="settore-card-icon">🛒</div>
+            <div class="settore-card-title">Commercio</div>
+            <div class="settore-card-sub">Commessi, GDO, retail</div>
+          </div>
+          <div class="settore-card" onclick="selezionaSettore('industria')">
+            <div class="settore-card-icon">🏭</div>
+            <div class="settore-card-title">Industria</div>
+            <div class="settore-card-sub">Metalmeccanici, manifattura</div>
+          </div>
+          <div class="settore-card" onclick="selezionaSettore('pubblico')">
+            <div class="settore-card-icon">🏛️</div>
+            <div class="settore-card-title">Pubblico impiego</div>
+            <div class="settore-card-sub">Statali, enti locali, scuola</div>
+          </div>
+        </div>
+        <p style="font-size:0.76rem;color:var(--testo-muted);margin-top:0.5rem;margin-bottom:0">Oppure scrivi direttamente la tua domanda.</p>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea id="input-msg" placeholder="Descrivi la tua situazione..." rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();invia()}"
+          oninput="autoResize(this)"></textarea>
+        <button class="btn-send" id="btn-send" onclick="invia()">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M14 8L2 3L5 8L2 13L14 8Z" fill="white"/></svg>
+        </button>
+      </div>
+      <div class="input-footer">Risposte orientative — per agire legalmente consulta un avvocato o sindacato</div>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE BOTTOM NAV -->
+<nav class="mobile-nav">
+  <div class="mobile-nav-items">
+    <div class="mobile-nav-item active" onclick="null">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Chat
+    </div>
+    <div class="mobile-nav-item" onclick="apriSidebar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>
+      Profilo
+    </div>
+    <div class="mobile-nav-item" onclick="apriSidebar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      Menu
+    </div>
+  </div>
+</nav>
+
+<script>
+const SETTORI = {
+  sanita:    { label: 'Sanità', ccnl: 'CCNL Sanità pubblica e privata', classe: 'sanita', emoji: '🏥' },
+  commercio: { label: 'Commercio', ccnl: 'CCNL Commercio e terziario', classe: 'commercio', emoji: '🛒' },
+  industria: { label: 'Industria', ccnl: 'CCNL Metalmeccanici', classe: 'industria', emoji: '🏭' },
+  pubblico:  { label: 'Pubblico impiego', ccnl: 'CCNL Funzioni centrali', classe: 'pubblico', emoji: '🏛️' }
+};
+
+let profilo = { settore: null, tipoContratto: null };
+let cronologia = [];
+let loading = false;
+
+function apriSidebar() {
+  document.getElementById('sidebar').classList.add('aperta');
+  document.getElementById('sidebar-overlay').classList.add('aperto');
 }
+function chiudiSidebar() {
+  document.getElementById('sidebar').classList.remove('aperta');
+  document.getElementById('sidebar-overlay').classList.remove('aperto');
+}
+
+function getSystemPrompt() {
+  let prompt = `Sei SindacAI, un consulente esperto di diritto del lavoro italiano. Sei empatico, chiaro e professionale.
+Se non conosci il settore del lavoratore, chiediglielo in modo naturale.
+Una volta noto il settore, personalizza le risposte su quel CCNL specifico.
+CITAZIONI: [SENTENZA: n/anno | organo | principio] [CCNL: art | contenuto] [LEGGE: norma | contenuto]
+STRUTTURA: risposta diretta → normativa → passi pratici → disclaimer breve.
+Rispondi SEMPRE in italiano.`;
+  if (profilo.settore) {
+    const s = SETTORI[profilo.settore];
+    prompt += `\nPROFILO: ${s.label} · ${s.ccnl}`;
+    if (profilo.tipoContratto) prompt += ` · ${profilo.tipoContratto}`;
+  }
+  return prompt;
+}
+
+function selezionaSettore(settore) {
+  profilo.settore = settore;
+  const s = SETTORI[settore];
+  const benv = document.getElementById('benvenuto');
+  if (benv) benv.remove();
+  aggiornaUI(settore);
+  const cont = document.getElementById('messaggi');
+  const div = document.createElement('div');
+  div.className = 'msg-ai';
+  div.innerHTML = `
+    <div class="ai-avatar"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2L10 6H14L11 9L12 13L8 11L4 13L5 9L2 6H6L8 2Z" fill="white"/></svg></div>
+    <div class="msg-ai-content">
+      <p>Perfetto! Sei nel settore <strong>${s.label}</strong> — lavorerò con il <strong>${s.ccnl}</strong>.</p>
+      <p>Che tipo di contratto hai?</p>
+      <div class="quick-reply-row">
+        <span class="quick-reply" onclick="impostaTipo('Tempo indeterminato')">Tempo indeterminato</span>
+        <span class="quick-reply" onclick="impostaTipo('Tempo determinato')">Tempo determinato</span>
+        <span class="quick-reply" onclick="impostaTipo('Part-time')">Part-time</span>
+        <span class="quick-reply" onclick="impostaTipo('Somministrazione')">Somministrazione</span>
+        <span class="quick-reply" onclick="impostaTipo('Apprendistato')">Apprendistato</span>
+      </div>
+    </div>`;
+  cont.appendChild(div);
+  cont.scrollTop = cont.scrollHeight;
+}
+
+function impostaTipo(tipo) {
+  profilo.tipoContratto = tipo;
+  const s = SETTORI[profilo.settore];
+  const cont = document.getElementById('messaggi');
+  const mu = document.createElement('div');
+  mu.className = 'msg-utente';
+  mu.innerHTML = `<div class="msg-utente-bubble">${tipo}</div>`;
+  cont.appendChild(mu);
+  const div = document.createElement('div');
+  div.className = 'msg-ai';
+  div.innerHTML = `
+    <div class="ai-avatar"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2L10 6H14L11 9L12 13L8 11L4 13L5 9L2 6H6L8 2Z" fill="white"/></svg></div>
+    <div class="msg-ai-content">
+      <p>Ottimo — <strong>${s.emoji} ${s.label} · ${tipo}</strong>. Dimmi pure il tuo problema.</p>
+      <div class="quick-reply-row">
+        <span class="quick-reply" onclick="inserisci('Ho un problema con il licenziamento')">Licenziamento</span>
+        <span class="quick-reply" onclick="inserisci('Non mi pagano gli straordinari')">Straordinari</span>
+        <span class="quick-reply" onclick="inserisci('Ho problemi con le ferie')">Ferie</span>
+        <span class="quick-reply" onclick="inserisci('Mi hanno cambiato le mansioni')">Mansioni</span>
+      </div>
+    </div>`;
+  cont.appendChild(div);
+  cont.scrollTop = cont.scrollHeight;
+  aggiornaProfiloPill();
+}
+
+function aggiornaUI(settore) {
+  const s = SETTORI[settore];
+  const badge = document.getElementById('sidebar-settore');
+  badge.textContent = s.emoji + ' ' + s.label;
+  badge.className = 'settore-badge ' + s.classe;
+  const ccnlEl = document.getElementById('sidebar-ccnl');
+  ccnlEl.textContent = s.ccnl;
+  ccnlEl.style.display = 'block';
+  document.getElementById('topbar-title').textContent = 'Consulente ' + s.label;
+  document.getElementById('topbar-sub').textContent = s.ccnl + ' · Giurisprudenza';
+}
+
+function aggiornaProfiloPill() {
+  const s = SETTORI[profilo.settore];
+  document.getElementById('profilo-label').textContent = s.emoji + ' ' + s.label;
+  document.getElementById('profilo-pill').classList.add('visibile');
+}
+
+function resetProfilo() {
+  if (confirm('Cambiare profilo resetterà la conversazione.')) location.reload();
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function inserisci(testo) {
+  document.getElementById('input-msg').value = testo;
+  autoResize(document.getElementById('input-msg'));
+  document.getElementById('input-msg').focus();
+}
+
+function inserisciEchiudi(testo) {
+  inserisci(testo);
+  chiudiSidebar();
+}
+
+function parsaCitazioni(testo) {
+  const citazioni = [];
+  const rest = testo.replace(/\[(SENTENZA|CCNL|LEGGE):([^\]]+)\]/g, (_, tipo, contenuto) => {
+    citazioni.push({ tipo: tipo.toLowerCase(), parti: contenuto.split('|').map(s => s.trim()) });
+    return '';
+  });
+  return { testo: rest.trim(), citazioni };
+}
+
+function renderCitazione(cit) {
+  const label = cit.tipo === 'sentenza' ? 'Sentenza' : cit.tipo === 'ccnl' ? 'CCNL' : 'Legge';
+  return `<div class="cit-card ${cit.tipo}"><span class="cit-tipo ${cit.tipo}">${label}</span><div class="cit-testo"><strong>${cit.parti[0]||''}</strong><span class="cit-meta">${cit.parti[1]||''}</span></div></div>`;
+}
+
+function aggiungiMessaggio(ruolo, contenuto) {
+  const cont = document.getElementById('messaggi');
+  const benv = document.getElementById('benvenuto');
+  if (benv) benv.remove();
+  if (ruolo === 'user') {
+    const div = document.createElement('div');
+    div.className = 'msg-utente';
+    div.innerHTML = `<div class="msg-utente-bubble">${contenuto}</div>`;
+    cont.appendChild(div);
+  } else {
+    const { testo, citazioni } = parsaCitazioni(contenuto);
+    const div = document.createElement('div');
+    div.className = 'msg-ai';
+    const citHtml = citazioni.length > 0 ? `<div class="citazioni"><div class="citazioni-label">Fonti citate</div>${citazioni.map(renderCitazione).join('')}</div>` : '';
+    const paragrafi = testo.split('\n').filter(r => r.trim()).map(r => `<p>${r}</p>`).join('');
+    div.innerHTML = `<div class="ai-avatar"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2L10 6H14L11 9L12 13L8 11L4 13L5 9L2 6H6L8 2Z" fill="white"/></svg></div><div class="msg-ai-content">${paragrafi}${citHtml}</div>`;
+    cont.appendChild(div);
+  }
+  cont.scrollTop = cont.scrollHeight;
+}
+
+function mostraLoading() {
+  const cont = document.getElementById('messaggi');
+  const div = document.createElement('div');
+  div.id = 'typing';
+  div.className = 'loading-msg';
+  div.innerHTML = `<div class="ai-avatar"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2L10 6H14L11 9L12 13L8 11L4 13L5 9L2 6H6L8 2Z" fill="white"/></svg></div><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+  cont.appendChild(div);
+  cont.scrollTop = cont.scrollHeight;
+}
+
+function rimuoviLoading() {
+  const t = document.getElementById('typing');
+  if (t) t.remove();
+}
+
+async function invia() {
+  if (loading) return;
+  const inp = document.getElementById('input-msg');
+  const testo = inp.value.trim();
+  if (!testo) return;
+  inp.value = '';
+  inp.style.height = 'auto';
+  loading = true;
+  document.getElementById('btn-send').disabled = true;
+  const benv = document.getElementById('benvenuto');
+  if (benv) benv.remove();
+  aggiungiMessaggio('user', testo);
+  cronologia.push({ role: 'user', content: testo });
+  mostraLoading();
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: cronologia, system: getSystemPrompt() })
+    });
+    const data = await res.json();
+    rimuoviLoading();
+    const risposta = data.content?.map(b => b.text || '').join('') || 'Errore nella risposta.';
+    cronologia.push({ role: 'assistant', content: risposta });
+    aggiungiMessaggio('assistant', risposta);
+  } catch (err) {
+    rimuoviLoading();
+    aggiungiMessaggio('assistant', 'Errore di connessione. Riprova tra qualche istante.');
+  }
+  loading = false;
+  document.getElementById('btn-send').disabled = false;
+  inp.focus();
+}
+</script>
+</body>
+</html>
