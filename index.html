@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
+ <script>
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+  
+  const supabase = createClient(
+    'https://daayjuwrfpxttqxztaci.supabase.co',
+    sb_publishable_VFJL9GuCoxDxiRF8E9UQfA_fEqpF_te // la tua SUPABASE_KEY
+  );
+
+  (async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      window.location.href = '/login.html';
+    }
+  })();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SindacAI — Consulente AI del Lavoro</title>
