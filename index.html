@@ -505,6 +505,60 @@ async function invia() {
   const inp = document.getElementById('input-msg');
   const testo = inp.value.trim();
   if (!testo) return;
+
+  // Controlla limite messaggi
+  const contatore = parseInt(localStorage.getItem('msg_count') || '0');
+  const mese = localStorage.getItem('msg_mese') || '';
+  const meseCorrente = new Date().toISOString().slice(0, 7);
+  let count = mese === meseCorrente ? contatore : 0;
+
+  if (count >= 5) {
+    aggiungiMessaggio('assistant', `⚠️ **Hai esaurito i 5 messaggi gratuiti di questo mese.**\nAttiva il piano **Protetto** per continuare senza limiti.\n💳 **€3.95/mese** oppure **€35.90/anno** *(risparmi €11.50)*\n👉 [Attiva ora il piano Protetto](https://sindacai.vercel.app/pro)`);
+    return;
+  }
+
+  inp.value = '';
+  inp.style.height = 'auto';
+  loading = true;
+  document.getElementById('btn-send').disabled = true;
+  const benv = document.getElementById('benvenuto');
+  if (benv) benv.remove();
+  aggiungiMessaggio('user', testo);
+  cronologia.push({ role: 'user', content: testo });
+  mostraLoading();
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: cronologia, system: getSystemPrompt() })
+    });
+    const data = await res.json();
+    rimuoviLoading();
+    const risposta = data.content?.map(b => b.text || '').join('') || 'Errore nella risposta.';
+    cronologia.push({ role: 'assistant', content: risposta });
+    aggiungiMessaggio('assistant', risposta);
+
+    count++;
+    localStorage.setItem('msg_count', count);
+    localStorage.setItem('msg_mese', meseCorrente);
+
+    if (count === 3) {
+      aggiungiMessaggio('assistant', `🌟 **Stai ottenendo il massimo da SindacAI!**\nCon il piano **Protetto** hai consulenze illimitate, prima consulenza gratuita con uno specialista legale del lavoro e 25% di sconto sui follow-up.\n💳 **€3.95/mese** oppure **€35.90/anno** *(risparmi €11.50)*\n👉 [Scopri il piano Protetto](https://sindacai.vercel.app/pro)`);
+    }
+
+  } catch (err) {
+    rimuoviLoading();
+    aggiungiMessaggio('assistant', 'Errore di connessione. Riprova tra qualche istante.');
+  }
+
+  loading = false;
+  document.getElementById('btn-send').disabled = false;
+  inp.focus();
+}
+  const inp = document.getElementById('input-msg');
+  const testo = inp.value.trim();
+  if (!testo) return;
   inp.value = '';
   inp.style.height = 'auto';
   loading = true;
