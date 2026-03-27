@@ -267,12 +267,12 @@
 
 <script>
 // SUPABASE AUTH
-const supabase = window.supabase.createClient(
+const sbClient = window.supabase.createClient(
   'https://daayjuwrfpxttqxztaci.supabase.co',
   'sb_publishable_VFJL9GuCoxDxiRF8E9UQfA_fEqpF_te'
 );
 (async () => {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sbClient.auth.getSession() ;
   if (!session) window.location.href = '/login.html';
 })();
 
